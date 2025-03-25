@@ -5,14 +5,13 @@ from PIL import Image as pilImage
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Image, PageBreak
 
-# 创建一个 MCP 服务端实例，命名为 "SimpleServer"
-mcp = FastMCP("SimpleServer")
+mcp = FastMCP("PDFMCP")
 
 # 定义一个资源：返回一个简单的问候语
-@mcp.resource("greeting://hello")
+@mcp.resource("greeting://pdfmcp")
 def get_greeting() -> str:
     """Return a static greeting message."""
-    return "hello 这个一个pdf工具!"
+    return "你好 这是一个pdf工具!"
 
 # 定义一个工具：拆分PDF
 @mcp.tool()
