@@ -4,16 +4,19 @@ import fitz,os
 from PIL import Image as pilImage
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Image, PageBreak
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from io import BytesIO
 
 mcp = FastMCP("PDFMCP")
 
-# 定义一个资源：返回一个简单的问候语
+#返回一个简单的问候语
 @mcp.resource("greeting://pdfmcp")
 def get_greeting() -> str:
     """Return a static greeting message."""
     return "你好 这是一个pdf工具!"
 
-# 定义一个工具：拆分PDF
+#拆分PDF
 @mcp.tool()
 def split_pdf(pdf_file_path: str, target_pages: list, save_path: str) -> str:
     """拆分pdf.
@@ -23,7 +26,7 @@ def split_pdf(pdf_file_path: str, target_pages: list, save_path: str) -> str:
         target_pages: 所包含的页面序号，从 1 开始算起
         save_path: 最后的保存路径
     Returns:
-        str: 包含搜索结果的格式化字符串
+        str: 执行结果
     """
     if not target_pages or not save_path or not pdf_file_path:
         raise Exception('请输入正确的参数')
@@ -46,7 +49,7 @@ def split_pdf(pdf_file_path: str, target_pages: list, save_path: str) -> str:
         pdf_writer.write(out_file)
     return '拆分成功'
 
-# 定义一个工具：合并PDF
+#合并PDF
 @mcp.tool()
 def merge_pdf(pdf_files_path: list, save_path: str) -> str:
     '''合并pdf.
@@ -55,7 +58,7 @@ def merge_pdf(pdf_files_path: list, save_path: str) -> str:
         pdf_files_path: 文件位置
         save_path: 最后的保存路径
     Returns:
-        str: 包含搜索结果的格式化字符串
+        str: 执行结果
     '''
     pdf_writer = PyPDF2.PdfWriter()
 
@@ -73,7 +76,7 @@ def merge_pdf(pdf_files_path: list, save_path: str) -> str:
         pdf_writer.write(out_file)
     return '合并成功'
 
-# 定义一个工具：PDF转图片
+#PDF转图片
 @mcp.tool()
 def pdf_to_picture(pdf_file_path: str, picture_path: str, save_prefix: str) -> str:
     '''PDF转图片.
@@ -83,7 +86,7 @@ def pdf_to_picture(pdf_file_path: str, picture_path: str, save_prefix: str) -> s
         picture_path: 图片保存位置
         save_prefix: 保存文件前缀
     Returns:
-        str: 包含搜索结果的格式化字符串
+        str: 执行结果
     '''
     # 打开PDF文件
     pdf_file = fitz.open(pdf_file_path)
@@ -107,7 +110,7 @@ def pdf_to_picture(pdf_file_path: str, picture_path: str, save_prefix: str) -> s
 
  
  
-# 定义一个工具：获取目标文件下jpg和png图片文件
+#获取目标文件下jpg和png图片文件
 @mcp.tool()
 def get_images(picture_path: str) -> list:
     '''图片转PDF.
@@ -125,17 +128,17 @@ def get_images(picture_path: str) -> list:
     return images
  
  
-# 定义一个工具：图片转PDF
+#图片转PDF
 @mcp.tool()
 def images_to_pdf(pictures: list, picture_path: str, save_path: str) -> str:
     '''图片转PDF.
     
     Args:
-        pictures: 有那些文件
+        pictures: 图片名称列表
         picture_path: 图片位置
         save_path: 保存文件位置
     Returns:
-        str: 包含搜索结果的格式化字符串
+        str: 执行结果
     '''
     os.chdir(picture_path)
  
@@ -176,7 +179,180 @@ def images_to_pdf(pictures: list, picture_path: str, save_path: str) -> str:
         pdf_doc.build(frames)
         # print('转换完成，共计%d张' % len(images))
     return '转换成功'
+ 
+ #PDF压缩
+@mcp.tool()
+def compress_pdf(pdf_file_path: str, save_path: str) -> str:
+    '''PDF压缩.
+    
+    Args:
+        pdf_file_path: pdf文件位置
+        save_path: 保存文件位置
+    Returns:
+        str: 执行结果
+    '''
+    reader = PyPDF2.PdfReader(pdf_file_path)
+    writer = PyPDF2.PdfWriter()
+    
+    for page in reader.pages:
+        page.compress_content_streams()  # 压缩内容流
+        writer.add_page(page)
+    
+    with open(save_path, "wb") as f:
+        writer.write(f)
+    return '压缩成功'
 
-# 运行服务端
+ #PDF加密
+@mcp.tool() 
+def encrypt_pdf(pdf_file_path: str,  user_pwd: str, save_path: str) -> str:
+    '''PDF加密.
+    
+    Args:
+        pdf_file_path: pdf文件位置
+        user_pwd: 是用户打开文档时需要输入的密码
+        save_path: 保存文件位置
+    Returns:
+        str: 执行结果
+    '''
+    user_pwd = str(user_pwd) # 确保密码是字符串
+    # 打开PDF文件
+    reader = PyPDF2.PdfReader(pdf_file_path)
+    writer = PyPDF2.PdfWriter()
+
+    # 添加所有页面到writer
+    for page in reader.pages:
+        writer.add_page(page)
+
+    # 加密PDF文件
+
+    writer.encrypt(
+        user_password=user_pwd,  # 用户密码(打开文件需要)
+        use_128bit=True         # 使用128位加密(更安全)
+    )
+
+    # 保存加密后的文件
+    with open(save_path, "wb") as f:
+        writer.write(f)
+    return '加密成功'
+
+ #PDF解密
+@mcp.tool() 
+def decrypt_pdf(pdf_file_path: str,  user_pwd: str, save_path: str) -> str:
+    """解密受密码保护的PDF文件.
+
+    Args:
+        pdf_file_path: pdf文件位置
+        user_pwd: 密码
+        save_path: 保存文件位置
+    Returns:
+        str: 执行结果
+    """
+    try:
+        reader = PyPDF2.PdfReader(pdf_file_path)
+        if reader.is_encrypted:
+            reader.decrypt(user_pwd)
+        
+        writer = PyPDF2.PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+        
+        with open(save_path, "wb") as f:
+            writer.write(f)
+        print("解密成功！文件已保存到:", save_path)
+    except Exception as e:
+        print("解密失败:", str(e))
+    return '解密成功'
+
+ #PDF添加文字水印
+@mcp.tool() 
+def add_text_watermark(pdf_file_path: str, watermark_text: str, save_path: str, opacity: float=0.5) -> str:
+    """添加文字水印到PDF每一页.
+
+    Args:
+        pdf_file_path: pdf文件位置
+        watermark_text: 水印文字
+        save_path: 保存文件位置
+        opacity: 透明度(0-1)
+    Returns:
+        str: 执行结果
+    """
+
+    # 创建水印PDF
+    packet = BytesIO()
+    can = canvas.Canvas(packet)
+    can.setFillColorRGB(0.5, 0.5, 0.5, alpha=opacity)  # 灰色半透明
+    can.setFont("Helvetica", 50)  # 字体和大小
+    can.rotate(45)  # 旋转45度
+    can.drawString(150, 100, watermark_text)  # 水印位置
+    can.save()
+    
+    # 移动到文件开头
+    packet.seek(0)
+    watermark_pdf = PyPDF2.PdfReader(packet)
+    watermark_page = watermark_pdf.pages[0]
+    
+    # 处理原始PDF
+    reader = PyPDF2.PdfReader(pdf_file_path)
+    writer = PyPDF2.PdfWriter()
+    
+    for page in reader.pages:
+        # 合并水印和原始页
+        page.merge_page(watermark_page)
+        writer.add_page(page)
+    
+    # 保存结果
+    with open(save_path, "wb") as f:
+        writer.write(f)
+    return '添加成功'
+
+ #PDF添加图片水印
+@mcp.tool() 
+def add_image_watermark(pdf_file_path: str, save_path: str, image_path: str, scale: float=0.5, opacity: float=0.3) -> str:
+    """添加图片水印到PDF每一页.
+
+    Args:
+        pdf_file_path: pdf文件位置
+        save_path: 保存文件位置
+        image_path: 水印图片位置
+        scale: 缩放比例
+        opacity: 透明度(0-1)
+    Returns:
+        str: 执行结果
+    """
+    # 创建水印PDF
+    packet = BytesIO()
+    can = canvas.Canvas(packet)
+    
+    # 加载图片并计算位置(居中)
+    img = ImageReader(image_path)
+    iw, ih = img.getSize()
+    width, height = iw * scale, ih * scale
+    x = (595 - width) / 2  # A4宽度假设为595
+    y = (842 - height) / 2  # A4高度假设为842
+    
+    # 绘制半透明图片
+    can.setFillAlpha(opacity)
+    can.drawImage(img, x, y, width, height, mask='auto')
+    can.save()
+    
+    # 处理原始PDF
+    packet.seek(0)
+    watermark_pdf = PyPDF2.PdfReader(packet)
+    watermark_page = watermark_pdf.pages[0]
+    
+    reader = PyPDF2.PdfReader(pdf_file_path)
+    writer = PyPDF2.PdfWriter()
+    
+    for page in reader.pages:
+        page.merge_page(watermark_page)
+        writer.add_page(page)
+    
+    with open(save_path, "wb") as f:
+        writer.write(f)
+    return '添加成功'
+
+
 if __name__ == "__main__":
+    # encrypt_pdf("D:/test/pdf-mcp/test/output.pdf", "D:/test/pdf-mcp/test/output1.pdf", "123456")
+    # compress_pdf("D:/test/pdf-mcp/test/ttt.pdf", "D:/test/pdf-mcp/test/output.pdf")
     mcp.run()
